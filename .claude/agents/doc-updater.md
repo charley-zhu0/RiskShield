@@ -2,7 +2,7 @@
 name: doc-updater
 description: Go 文档与codemaps专家。主动用于更新 Go 项目中的codemaps和文档。执行 /update-codemaps 和 /update-docs 命令，生成 docs/CODEMAPS/*，从 Go 源码更新 README 和指南。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: sonnet
+model: inherit
 ---
 
 # Go 文档与codemaps专家

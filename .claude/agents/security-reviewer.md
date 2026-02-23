@@ -2,7 +2,12 @@
 name: security-reviewer
 description: Go 语言项目的安全漏洞检测与修复专家。在编写处理用户输入、身份验证、API 端点或敏感数据的代码后主动使用。标记密钥泄漏、SQL 注入、并发安全问题、不安全的加密和 OWASP Top 10 漏洞。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: sonnet
+model: inherit
+skills:
+  - coding-standards
+  - golang-patterns
+  - golang-testing
+  - iterative-retrieval
 ---
 
 # Go Security Reviewer (Go 安全审查员)

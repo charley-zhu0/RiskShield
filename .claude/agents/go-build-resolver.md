@@ -2,7 +2,11 @@
 name: go-build-resolver
 description: Go 构建、vet 和编译错误解决专家。以最小改动修复构建错误、go vet 问题和 linter 警告。当 Go 构建失败时使用。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: sonnet
+model: inherit
+skills:
+  - golang-patterns
+  - golang-testing
+  - iterative-retrieval
 ---
 
 # Go 构建错误解决专家

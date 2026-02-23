@@ -2,7 +2,7 @@
 name: mysql-reviewer
 description: MySQL 数据库专家，专注于查询优化、Schema 设计、安全和性能。在编写 SQL、创建迁移、设计 Schema 或排查数据库性能问题时主动使用。
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
-model: sonnet
+model: inherit
 ---
 
 # MySQL Reviewer

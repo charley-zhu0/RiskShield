@@ -913,12 +913,15 @@ project/
 │   │   └── user.go
 │   ├── repository/
 │   │   ├── market.go            // 数据访问层
+│   │   ├── market_test.go       // 🧪 单元测试 (同包)
 │   │   └── user.go
 │   ├── service/
 │   │   ├── market.go            // 业务逻辑层
+│   │   ├── market_test.go       // 🧪 单元测试
 │   │   └── user.go
 │   ├── handler/
 │   │   ├── market.go            // HTTP处理程序
+│   │   ├── market_test.go       // 🧪 处理程序测试
 │   │   └── user.go
 │   └── middleware/
 │       ├── auth.go
@@ -931,9 +934,24 @@ project/
 │       └── errors.go            // 错误定义
 ├── migrations/                  // 数据库迁移
 ├── go.mod
+├── test/
+│   └── integration/             // 集成测试 (可选)
 ├── go.sum
 └── README.md
 ```
+
+### 测试文件放置最佳实践
+
+1. **单元测试 (Unit Tests)**:
+   - **位置**: 与被测试的源文件放在同一目录中。这是Go的标准做法。
+   - **命名**: `filename_test.go` (例如 `market.go` 对应 `market_test.go`)。
+   - **包名**:
+     - 使用 `package foo`：当需要测试私有函数/变量时（白盒测试）。
+     - 使用 `package foo_test`：当仅测试导出接口时（黑盒测试），这强制你像外部调用者一样使用包，有助于解耦。
+
+2. **集成测试 (Integration Tests)**:
+   - 可以放在根目录的 `test/` 文件夹下，特别是涉及多个模块交互的测试。
+   - 或者放在包内的 `_test.go` 文件中，并使用构建标签 `//go:build integration` 来区分。
 
 ### 依赖注入示例
 

@@ -2,7 +2,11 @@
 name: go-reviewer
 description: Go 代码审查专家，专注于惯用 Go、并发模式、错误处理和性能。用于所有 Go 代码更改。Go 项目必须使用。
 tools: ["Read", "Grep", "Glob", "Bash"]
-model: sonnet
+model: inherit
+skills:
+  - golang-patterns
+  - golang-testing
+  - iterative-retrieval
 ---
 
 你是一位资深的 Go 代码审查专家，确保代码符合惯用 Go 的高标准和最佳实践。
