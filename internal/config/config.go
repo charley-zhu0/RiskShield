@@ -1,119 +1,86 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
-// DefaultConfigPath is the default path to the risk.json configuration file
-var DefaultConfigPath = "./internal/config/risk.json"
-
-// Config holds all application configuration
 type Config struct {
-	ServerPort       string
-	SensitiveWordURL string
-	LLMServiceURL    string
-	RequestTimeout   time.Duration
-	LogDir           string
-	LogMaxBackups    int
+	ServerPort       string        `mapstructure:"server_port"`
+	SensitiveWordURL string        `mapstructure:"sensitive_word_url"`
+	LLMServiceURL    string        `mapstructure:"llm_service_url"`
+	RequestTimeout   time.Duration `mapstructure:"request_timeout"`
+	LogDir           string        `mapstructure:"log_dir"`
+	LogMaxBackups    int           `mapstructure:"log_max_backups"`
 }
 
-// LogConfig holds log-specific configuration from JSON file
-type LogConfig struct {
-	Dir        string `json:"dir"`
-	MaxBackups int    `json:"max_backups"`
-}
+func Load() (*Config, error) {
+	v := viper.New()
+	setDefaults(v)
+	bindEnvVars(v)
 
-// RiskConfig represents the structure of risk.json file
-type RiskConfig struct {
-	Log LogConfig `json:"log"`
-}
-
-// LoadLogConfig loads log configuration from JSON file
-func LoadLogConfig(configPath string) (*LogConfig, error) {
-	// Read the JSON file
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
-	}
-
-	// Check for empty file
-	if len(data) == 0 {
-		return nil, fmt.Errorf("config file %s is empty", configPath)
-	}
-
-	// Parse JSON
-	var riskConfig RiskConfig
-	if err := json.Unmarshal(data, &riskConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
-	}
-
-	// Apply default values if not specified
-	logConfig := &LogConfig{
-		Dir:        riskConfig.Log.Dir,
-		MaxBackups: riskConfig.Log.MaxBackups,
-	}
-
-	if logConfig.Dir == "" {
-		logConfig.Dir = "./logs"
-	}
-
-	if logConfig.MaxBackups == 0 {
-		logConfig.MaxBackups = 30
-	}
-
-	return logConfig, nil
-}
-
-// Load loads configuration from environment variables and JSON file
-// This function loads log configuration from risk.json and other configs from env vars
-func Load() *Config {
-	configPath := DefaultConfigPath
-	if absPath, err := filepath.Abs(configPath); err == nil {
-		configPath = absPath
-	}
-
-	cfg, err := LoadWithPath(configPath)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to load configuration: %v", err))
-	}
-
-	return cfg
-}
-
-// LoadWithPath loads configuration from a specific config file path
-func LoadWithPath(configPath string) (*Config, error) {
-	// Load log configuration from JSON file
-	logConfig, err := LoadLogConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load log config: %w", err)
-	}
-
-	// Load other configuration from environment variables
-	timeout := 30
-	if t := os.Getenv("REQUEST_TIMEOUT"); t != "" {
-		if v, err := strconv.Atoi(t); err == nil {
-			timeout = v
+	configPath := v.GetString("config_path")
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+		err := v.ReadInConfig()
+		if err != nil {
+			// Check if it's a "file not found" error using string matching
+			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+				// File not found is OK
+			} else if os.IsNotExist(err) {
+				// Also handle os.PathError
+			} else {
+				return nil, fmt.Errorf("failed to read config file: %w", err)
+			}
 		}
 	}
 
-	return &Config{
-		ServerPort:       getEnv("SERVER_PORT", "8080"),
-		SensitiveWordURL: getEnv("SENSITIVE_WORD_URL", ""),
-		LLMServiceURL:    getEnv("LLM_SERVICE_URL", ""),
-		RequestTimeout:   time.Duration(timeout) * time.Second,
-		LogDir:           logConfig.Dir,
-		LogMaxBackups:    logConfig.MaxBackups,
-	}, nil
+	// Handle REQUEST_TIMEOUT compatibility before unmarshal
+	if timeoutStr := v.GetString("request_timeout"); timeoutStr != "" {
+		if seconds, err := strconv.Atoi(timeoutStr); err == nil {
+			v.Set("request_timeout", time.Duration(seconds)*time.Second)
+		}
+	}
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+
+	if err := validate(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func setDefaults(v *viper.Viper) {
+	v.SetDefault("server_port", "8080")
+	v.SetDefault("request_timeout", 30*time.Second)
+	v.SetDefault("log_dir", "./logs")
+	v.SetDefault("log_max_backups", 30)
+}
+
+func bindEnvVars(v *viper.Viper) {
+	v.BindEnv("config_path", "CONFIG_PATH")
+	v.BindEnv("server_port", "SERVER_PORT")
+	v.BindEnv("sensitive_word_url", "SENSITIVE_WORD_URL")
+	v.BindEnv("llm_service_url", "LLM_SERVICE_URL")
+	v.BindEnv("request_timeout", "REQUEST_TIMEOUT")
+	v.BindEnv("log_dir", "LOG_DIR")
+	v.BindEnv("log_max_backups", "LOG_MAX_BACKUPS")
+}
+
+func validate(cfg *Config) error {
+	if cfg.SensitiveWordURL == "" {
+		return fmt.Errorf("SENSITIVE_WORD_URL is required")
 	}
-	return defaultValue
+	if cfg.LLMServiceURL == "" {
+		return fmt.Errorf("LLM_SERVICE_URL is required")
+	}
+	return nil
 }

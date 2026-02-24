@@ -1,6 +1,0 @@
-{
-  "log": {
-    "dir": "./logs",
-    "max_backups": 30
-  }
-}

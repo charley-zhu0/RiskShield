@@ -23,7 +23,10 @@ func setupSignalHandler(sigChan chan os.Signal) {
 }
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("配置加载失败: %v", err)
+	}
 
 	if err := logger.Init(cfg.LogDir, cfg.LogMaxBackups); err != nil {
 		log.Fatalf("日志初始化失败: %v", err)

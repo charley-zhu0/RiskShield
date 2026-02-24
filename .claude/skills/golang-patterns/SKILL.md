@@ -905,6 +905,7 @@ project/
 ├── cmd/
 │   └── server/
 │       └── main.go              // 应用程序入口点
+├── configs/                     // 配置文件模板或默认配置 (例如 config.yaml, .env.example)
 ├── internal/
 │   ├── config/
 │   │   └── config.go            // 配置管理
