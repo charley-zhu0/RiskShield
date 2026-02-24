@@ -2,3 +2,5 @@
 logs/*
 bin/*
 coverage.out
+.env
+.vscode/*
