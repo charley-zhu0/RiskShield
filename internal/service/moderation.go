@@ -5,6 +5,8 @@ import (
 
 	"github.com/charley/riskshield/internal/client"
 	"github.com/charley/riskshield/internal/domain"
+	"github.com/charley/riskshield/internal/logger"
+	"go.uber.org/zap"
 )
 
 type ModerationService interface {
@@ -27,10 +29,12 @@ func (s *moderationService) Moderate(ctx context.Context, content string) (*doma
 	// 检查敏感词
 	hit, words, err := s.swClient.Match(ctx, content)
 	if err != nil {
+		logger.Error("敏感词检测失败", zap.Error(err))
 		return nil, err
 	}
 
 	if hit {
+		logger.Info("命中敏感词", zap.Strings("words", words))
 		return &domain.ModerationResult{
 			Decision: "REJECT",
 			Reason:   "命中敏感词",
@@ -41,6 +45,7 @@ func (s *moderationService) Moderate(ctx context.Context, content string) (*doma
 	// 大模型分类
 	safetyType, attackType, err := s.llmClient.Classify(ctx, content)
 	if err != nil {
+		logger.Error("大模型分类失败", zap.Error(err))
 		return nil, err
 	}
 
@@ -53,6 +58,7 @@ func (s *moderationService) Moderate(ctx context.Context, content string) (*doma
 	if safetyType != "正常" {
 		result.Decision = "REJECT"
 		result.Reason = "内容违规"
+		logger.Info("内容违规", zap.String("safety_type", safetyType))
 	} else {
 		result.Decision = "PASS"
 	}

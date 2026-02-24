@@ -7,10 +7,12 @@ import (
 )
 
 type Config struct {
-	ServerPort        string
-	SensitiveWordURL  string
-	LLMServiceURL     string
-	RequestTimeout    time.Duration
+	ServerPort       string
+	SensitiveWordURL string
+	LLMServiceURL    string
+	RequestTimeout   time.Duration
+	LogDir           string
+	LogMaxBackups    int
 }
 
 func Load() *Config {
@@ -21,11 +23,20 @@ func Load() *Config {
 		}
 	}
 
+	logMaxBackups := 30
+	if b := os.Getenv("LOG_MAX_BACKUPS"); b != "" {
+		if v, err := strconv.Atoi(b); err == nil {
+			logMaxBackups = v
+		}
+	}
+
 	return &Config{
 		ServerPort:       getEnv("SERVER_PORT", "8080"),
 		SensitiveWordURL: getEnv("SENSITIVE_WORD_URL", ""),
 		LLMServiceURL:    getEnv("LLM_SERVICE_URL", ""),
 		RequestTimeout:   time.Duration(timeout) * time.Second,
+		LogDir:           getEnv("LOG_DIR", "logs"),
+		LogMaxBackups:    logMaxBackups,
 	}
 }
 

@@ -43,7 +43,7 @@
             "command": "node \".claude/scripts/hooks/session-start.js\""
           }
         ],
-        "description": "Load previous context and detect package manager on new session"
+        "description": "Load previous context"
       }
     ],
     "PostToolUse": [

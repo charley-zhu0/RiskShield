@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/charley/riskshield/internal/logger"
+	"go.uber.org/zap"
 )
 
 type LLMClient interface {
@@ -61,41 +64,49 @@ func (c *llmClient) Classify(ctx context.Context, content string) (string, strin
 
 	data, err := json.Marshal(reqBody)
 	if err != nil {
+		logger.Error("序列化LLM请求失败", zap.Error(err))
 		return "", "", err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/chat/completions", bytes.NewBuffer(data))
 	if err != nil {
+		logger.Error("创建LLM请求失败", zap.Error(err))
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		logger.Error("LLM服务调用失败", zap.String("url", c.baseURL), zap.Error(err))
 		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logger.Error("LLM服务返回错误", zap.Int("status", resp.StatusCode))
 		return "", "", fmt.Errorf("大模型服务返回错误: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logger.Error("读取LLM响应失败", zap.Error(err))
 		return "", "", err
 	}
 
 	var llmResp llmResponse
 	if err := json.Unmarshal(body, &llmResp); err != nil {
+		logger.Error("解析LLM响应失败", zap.Error(err))
 		return "", "", err
 	}
 
 	if len(llmResp.Choices) == 0 {
+		logger.Error("LLM返回空结果")
 		return "", "", fmt.Errorf("大模型返回空结果")
 	}
 
 	var result classifyResult
 	if err := json.Unmarshal([]byte(llmResp.Choices[0].Message.Content), &result); err != nil {
+		logger.Error("解析LLM分类结果失败", zap.Error(err))
 		return "", "", err
 	}
 

@@ -1,1 +1,4 @@
 .claude/sessions/*
+logs/*
+bin/*
+coverage.out

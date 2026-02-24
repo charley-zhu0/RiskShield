@@ -13,28 +13,34 @@ func TestLoad(t *testing.T) {
 		want    *Config
 	}{
 		{
-			name: "使用默认值",
+			name:    "使用默认值",
 			envVars: map[string]string{},
 			want: &Config{
 				ServerPort:       "8080",
 				SensitiveWordURL: "",
 				LLMServiceURL:    "",
 				RequestTimeout:   30 * time.Second,
+				LogDir:           "logs",
+				LogMaxBackups:    30,
 			},
 		},
 		{
 			name: "使用环境变量",
 			envVars: map[string]string{
-				"SERVER_PORT":         "9090",
-				"SENSITIVE_WORD_URL":  "http://sw.example.com",
-				"LLM_SERVICE_URL":     "http://llm.example.com",
-				"REQUEST_TIMEOUT":     "60",
+				"SERVER_PORT":        "9090",
+				"SENSITIVE_WORD_URL": "http://sw.example.com",
+				"LLM_SERVICE_URL":    "http://llm.example.com",
+				"REQUEST_TIMEOUT":    "60",
+				"LOG_DIR":            "/var/log/app",
+				"LOG_MAX_BACKUPS":    "60",
 			},
 			want: &Config{
 				ServerPort:       "9090",
 				SensitiveWordURL: "http://sw.example.com",
 				LLMServiceURL:    "http://llm.example.com",
 				RequestTimeout:   60 * time.Second,
+				LogDir:           "/var/log/app",
+				LogMaxBackups:    60,
 			},
 		},
 	}
@@ -62,6 +68,12 @@ func TestLoad(t *testing.T) {
 			}
 			if got.RequestTimeout != tt.want.RequestTimeout {
 				t.Errorf("RequestTimeout = %v, want %v", got.RequestTimeout, tt.want.RequestTimeout)
+			}
+			if got.LogDir != tt.want.LogDir {
+				t.Errorf("LogDir = %v, want %v", got.LogDir, tt.want.LogDir)
+			}
+			if got.LogMaxBackups != tt.want.LogMaxBackups {
+				t.Errorf("LogMaxBackups = %v, want %v", got.LogMaxBackups, tt.want.LogMaxBackups)
 			}
 		})
 	}
