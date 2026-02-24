@@ -4,15 +4,20 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type mockSensitiveWordClient struct {
 	hit   bool
 	words []string
 	err   error
+	delay time.Duration
 }
 
 func (m *mockSensitiveWordClient) Match(ctx context.Context, content string) (bool, []string, error) {
+	if m.delay > 0 {
+		time.Sleep(m.delay)
+	}
 	return m.hit, m.words, m.err
 }
 
@@ -20,9 +25,13 @@ type mockLLMClient struct {
 	safetyType string
 	attackType string
 	err        error
+	delay      time.Duration
 }
 
 func (m *mockLLMClient) Classify(ctx context.Context, content string) (string, string, error) {
+	if m.delay > 0 {
+		time.Sleep(m.delay)
+	}
 	return m.safetyType, m.attackType, m.err
 }
 
@@ -100,26 +109,84 @@ func TestModerationService_Moderate(t *testing.T) {
 	}
 }
 
-func TestModerationService_Moderate_Errors(t *testing.T) {
-	t.Run("敏感词服务失败", func(t *testing.T) {
-		swClient := &mockSensitiveWordClient{err: errors.New("服务错误")}
-		llmClient := &mockLLMClient{}
-		svc := NewModerationService(swClient, llmClient)
+func TestModerationService_Moderate_Concurrent(t *testing.T) {
+	t.Run("并发执行快于串行", func(t *testing.T) {
+		swClient := &mockSensitiveWordClient{
+			hit:   false,
+			words: []string{},
+			delay: 100 * time.Millisecond,
+		}
+		llmClient := &mockLLMClient{
+			safetyType: "正常",
+			attackType: "无",
+			delay:      100 * time.Millisecond,
+		}
 
-		_, err := svc.Moderate(context.Background(), "测试")
-		if err == nil {
-			t.Error("期望错误, 得到 nil")
+		svc := NewModerationService(swClient, llmClient)
+		start := time.Now()
+		_, err := svc.Moderate(context.Background(), "test")
+		elapsed := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if elapsed > 200*time.Millisecond {
+			t.Errorf("expected concurrent execution < 200ms, got %v", elapsed)
 		}
 	})
 
-	t.Run("大模型服务失败", func(t *testing.T) {
+	t.Run("超时忽略慢服务", func(t *testing.T) {
+		swClient := &mockSensitiveWordClient{
+			hit:   false,
+			words: []string{},
+			delay: 50 * time.Millisecond,
+		}
+		llmClient := &mockLLMClient{
+			safetyType: "正常",
+			attackType: "无",
+			delay:      500 * time.Millisecond,
+		}
+
+		svc := NewModerationService(swClient, llmClient)
+		result, err := svc.Moderate(context.Background(), "test")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.Decision != "PASS" {
+			t.Errorf("expected PASS, got %s", result.Decision)
+		}
+	})
+}
+
+func TestModerationService_Moderate_Errors(t *testing.T) {
+	t.Run("敏感词服务失败-继续执行", func(t *testing.T) {
+		swClient := &mockSensitiveWordClient{err: errors.New("服务错误")}
+		llmClient := &mockLLMClient{safetyType: "正常", attackType: "无"}
+		svc := NewModerationService(swClient, llmClient)
+
+		result, err := svc.Moderate(context.Background(), "测试")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Decision != "PASS" {
+			t.Errorf("expected PASS, got %s", result.Decision)
+		}
+	})
+
+	t.Run("大模型服务失败-继续执行", func(t *testing.T) {
 		swClient := &mockSensitiveWordClient{hit: false, words: []string{}}
 		llmClient := &mockLLMClient{err: errors.New("服务错误")}
 		svc := NewModerationService(swClient, llmClient)
 
-		_, err := svc.Moderate(context.Background(), "测试")
-		if err == nil {
-			t.Error("期望错误, 得到 nil")
+		result, err := svc.Moderate(context.Background(), "测试")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Decision != "PASS" {
+			t.Errorf("expected PASS, got %s", result.Decision)
 		}
 	})
 }
