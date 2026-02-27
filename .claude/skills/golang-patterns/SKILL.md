@@ -924,6 +924,11 @@ project/
 │   │   ├── market.go            // HTTP处理程序
 │   │   ├── market_test.go       // 🧪 处理程序测试
 │   │   └── user.go
+│   ├── router/
+│   │   ├── router.go            // 路由注册和分组
+│   │   ├── admin.go             // 管理员路由组
+│   │   ├── user.go              // 用户路由组
+│   │   └── public.go            // 公开路由组
 │   └── middleware/
 │       ├── auth.go
 │       ├── logging.go

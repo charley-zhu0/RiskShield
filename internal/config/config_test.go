@@ -23,6 +23,7 @@ func TestLoad(t *testing.T) {
 			env: map[string]string{
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "8080",
@@ -31,6 +32,7 @@ func TestLoad(t *testing.T) {
 				RequestTimeout:   30 * time.Second,
 				LogDir:           "./logs",
 				LogMaxBackups:    30,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 		{
@@ -43,6 +45,7 @@ func TestLoad(t *testing.T) {
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
 				"REQUEST_TIMEOUT":    "60s",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "9090",
@@ -51,6 +54,7 @@ func TestLoad(t *testing.T) {
 				RequestTimeout:   60 * time.Second,
 				LogDir:           "./logs",
 				LogMaxBackups:    30,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 		{
@@ -69,6 +73,7 @@ log_max_backups: 10
 			env: map[string]string{
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "8080",
@@ -77,6 +82,7 @@ log_max_backups: 10
 				RequestTimeout:   30 * time.Second,
 				LogDir:           "/var/log/app",
 				LogMaxBackups:    10,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 		{
@@ -88,6 +94,7 @@ log_max_backups: 10
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
 				"REQUEST_TIMEOUT":    "45s",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "8080",
@@ -96,6 +103,7 @@ log_max_backups: 10
 				RequestTimeout:   45 * time.Second,
 				LogDir:           "./logs",
 				LogMaxBackups:    30,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 		{
@@ -107,6 +115,7 @@ log_max_backups: 10
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
 				"REQUEST_TIMEOUT":    "50",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "8080",
@@ -115,6 +124,7 @@ log_max_backups: 10
 				RequestTimeout:   50 * time.Second,
 				LogDir:           "./logs",
 				LogMaxBackups:    30,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 		{
@@ -145,6 +155,7 @@ log_max_backups: 10
 			env: map[string]string{
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "8080",
@@ -153,6 +164,7 @@ log_max_backups: 10
 				RequestTimeout:   30 * time.Second,
 				LogDir:           "./logs",
 				LogMaxBackups:    30,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 		{
@@ -169,6 +181,7 @@ log_max_backups: 10
 			env: map[string]string{
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			wantErr: true,
 		},
@@ -188,6 +201,7 @@ log_max_backups: 5
 			env: map[string]string{
 				"SENSITIVE_WORD_URL": "http://sw.local",
 				"LLM_SERVICE_URL":    "http://llm.local",
+				"MYSQL_DSN":          "user:pass@tcp(localhost:3306)/db",
 			},
 			want: &Config{
 				ServerPort:       "8080",
@@ -196,6 +210,7 @@ log_max_backups: 5
 				RequestTimeout:   30 * time.Second,
 				LogDir:           "/custom/log",
 				LogMaxBackups:    5,
+				MySQLDSN:         "user:pass@tcp(localhost:3306)/db",
 			},
 		},
 	}

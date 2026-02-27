@@ -16,6 +16,7 @@ type Config struct {
 	RequestTimeout   time.Duration `mapstructure:"request_timeout"`
 	LogDir           string        `mapstructure:"log_dir"`
 	LogMaxBackups    int           `mapstructure:"log_max_backups"`
+	MySQLDSN         string        `mapstructure:"mysql_dsn"`
 }
 
 func Load() (*Config, error) {
@@ -73,6 +74,7 @@ func bindEnvVars(v *viper.Viper) {
 	v.BindEnv("request_timeout", "REQUEST_TIMEOUT")
 	v.BindEnv("log_dir", "LOG_DIR")
 	v.BindEnv("log_max_backups", "LOG_MAX_BACKUPS")
+	v.BindEnv("mysql_dsn", "MYSQL_DSN")
 }
 
 func validate(cfg *Config) error {
@@ -81,6 +83,9 @@ func validate(cfg *Config) error {
 	}
 	if cfg.LLMServiceURL == "" {
 		return fmt.Errorf("LLM_SERVICE_URL is required")
+	}
+	if cfg.MySQLDSN == "" {
+		return fmt.Errorf("MYSQL_DSN is required")
 	}
 	return nil
 }
