@@ -20,15 +20,27 @@ const {
   readFile,
   writeFile,
   replaceInFile,
+  findFiles,
   log
 } = require('../lib/utils');
 
 /**
  * Extract a meaningful summary from the session transcript.
  * Reads the JSONL transcript and pulls out key information:
- * - User messages (tasks requested)
+ * - User messages (tasks requested) → mapped to Completed items
  * - Tools used
  * - Files modified
+ *
+ * Claude Code transcript format (JSONL, two supported layouts):
+ *
+ * Layout A (Claude Code native JSONL):
+ *   { "type": "user", "message": { "role": "user", "content": string|array }, ... }
+ *   { "type": "assistant", "message": { "role": "assistant", "content": array }, ... }
+ *   Tool use blocks live inside message.content: [{ "type": "tool_use", "name": "Edit", "input": {...} }]
+ *
+ * Layout B (simple flat format):
+ *   { "role": "user"|"assistant", "content": string|array }
+ *   Tool use blocks are also in content array.
  */
 function extractSessionSummary(transcriptPath) {
   const content = readFile(transcriptPath);
@@ -44,24 +56,53 @@ function extractSessionSummary(transcriptPath) {
     try {
       const entry = JSON.parse(line);
 
-      // Collect user messages (first 200 chars each)
-      if (entry.type === 'user' || entry.role === 'user') {
-        const text = typeof entry.content === 'string'
-          ? entry.content
-          : Array.isArray(entry.content)
-            ? entry.content.map(c => (c && c.text) || '').join(' ')
-            : '';
-        if (text.trim()) {
-          userMessages.push(text.trim().slice(0, 200));
+      // ---- Resolve message object (handles both Layout A and B) ----
+      // Layout A: entry.type === 'user'/'assistant', actual message in entry.message
+      // Layout B: entry.role === 'user'/'assistant', content directly on entry
+      const msg = (entry.type === 'user' || entry.type === 'assistant')
+        ? entry.message   // Layout A
+        : entry;          // Layout B
+
+      if (!msg) continue;
+
+      // ---- Collect user messages (real human prompts only) ----
+      if (msg.role === 'user') {
+        let text = '';
+        if (typeof msg.content === 'string') {
+          text = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          // Extract only text blocks; skip tool_result blocks (system injected)
+          text = msg.content
+            .filter(c => c && c.type === 'text')
+            .map(c => c.text || '')
+            .join(' ');
+        }
+        const cleaned = text.replace(/<[^>]+>/g, '').trim();
+        if (cleaned && cleaned.length > 5) {
+          userMessages.push(cleaned.slice(0, 300));
         }
       }
 
-      // Collect tool names and modified files
-      if (entry.type === 'tool_use' || entry.tool_name) {
-        const toolName = entry.tool_name || entry.name || '';
-        if (toolName) toolsUsed.add(toolName);
+      // ---- Collect tools used and files modified ----
+      if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block && block.type === 'tool_use') {
+            const toolName = block.name || '';
+            if (toolName) toolsUsed.add(toolName);
 
-        const filePath = entry.tool_input?.file_path || entry.input?.file_path || '';
+            const filePath = block.input?.file_path || '';
+            if (filePath && (toolName === 'Edit' || toolName === 'Write')) {
+              filesModified.add(filePath);
+            }
+          }
+        }
+      }
+
+      // ---- Also handle flat tool_use entries ----
+      if (entry.type === 'tool_use') {
+        const toolName = entry.name || entry.tool_name || '';
+        if (toolName) toolsUsed.add(toolName);
+        const filePath = entry.input?.file_path || entry.tool_input?.file_path || '';
         if (filePath && (toolName === 'Edit' || toolName === 'Write')) {
           filesModified.add(filePath);
         }
@@ -75,10 +116,10 @@ function extractSessionSummary(transcriptPath) {
     log(`[SessionEnd] Skipped ${parseErrors}/${lines.length} unparseable transcript lines`);
   }
 
-  if (userMessages.length === 0) return null;
+  if (userMessages.length === 0 && toolsUsed.size === 0) return null;
 
   return {
-    userMessages: userMessages.slice(-10), // Last 10 user messages
+    userMessages: userMessages.slice(-10), // Last 10 user messages = tasks worked on
     toolsUsed: Array.from(toolsUsed).slice(0, 20),
     filesModified: Array.from(filesModified).slice(0, 30),
     totalMessages: userMessages.length
@@ -121,7 +162,6 @@ async function main() {
   const sessionsDir = getSessionsDir();
   const today = getDateString();
   const shortId = getSessionIdShort();
-  const sessionFile = path.join(sessionsDir, `${today}-${shortId}-session.tmp`);
 
   ensureDir(sessionsDir);
 
@@ -133,32 +173,54 @@ async function main() {
   if (transcriptPath) {
     if (fs.existsSync(transcriptPath)) {
       summary = extractSessionSummary(transcriptPath);
+      if (!summary) {
+        log('[SessionEnd] Could not extract summary from transcript (empty or unrecognized format)');
+      }
     } else {
       log(`[SessionEnd] Transcript not found: ${transcriptPath}`);
     }
+  } else {
+    log('[SessionEnd] No transcript_path provided in stdin');
+  }
+
+  // Find existing session file for today (any short-id for today's date)
+  const existingSessions = findFiles(sessionsDir, `${today}-*-session.tmp`);
+  // Also check old format: YYYY-MM-DD-session.tmp
+  const oldFormatFile = path.join(sessionsDir, `${today}-session.tmp`);
+  const oldFormatExists = fs.existsSync(oldFormatFile);
+
+  // Prefer existing file for today; otherwise use shortId-based filename
+  let sessionFile;
+  if (existingSessions.length > 0) {
+    sessionFile = existingSessions[0].path;
+  } else if (oldFormatExists) {
+    sessionFile = oldFormatFile;
+  } else {
+    sessionFile = path.join(sessionsDir, `${today}-${shortId}-session.tmp`);
   }
 
   if (fs.existsSync(sessionFile)) {
-    // Update existing session file
-    const updated = replaceInFile(
+    // Update timestamp
+    replaceInFile(
       sessionFile,
       /\*\*Last Updated:\*\*.*/,
       `**Last Updated:** ${currentTime}`
     );
-    if (!updated) {
-      log(`[SessionEnd] Failed to update timestamp in ${sessionFile}`);
-    }
 
-    // If we have a new summary and the file still has the blank template, replace it
+    // Replace blank template with real summary if we have one
     if (summary) {
       const existing = readFile(sessionFile);
       if (existing && existing.includes('[Session context goes here]')) {
-        // Use a flexible regex that tolerates CRLF, extra whitespace, and minor template variations
+        // Replace the entire Current State block with summary
         const updatedContent = existing.replace(
-          /## Current State\s*\n\s*\[Session context goes here\][\s\S]*?### Context to Load\s*\n```\s*\n\[relevant files\]\s*\n```/,
-          buildSummarySection(summary)
+          /## Current State[\s\S]*$/,
+          buildSummarySection(summary) + '\n'
         );
         writeFile(sessionFile, updatedContent);
+      } else if (existing) {
+        // Session already has content — append a new summary block
+        const appendContent = `\n---\n\n## Session Update (${today} ${currentTime})\n\n${buildSummarySection(summary)}\n`;
+        fs.appendFileSync(sessionFile, appendContent, 'utf8');
       }
     }
 
@@ -186,32 +248,58 @@ ${summarySection}
   process.exit(0);
 }
 
+/**
+ * Build the summary section of the session file.
+ * Uses Completed/In Progress format compatible with session-manager.js parseSessionMetadata.
+ */
 function buildSummarySection(summary) {
-  let section = '## Session Summary\n\n';
+  let section = '## Current State\n\n';
 
-  // Tasks (from user messages — escape backticks to prevent markdown breaks)
-  section += '### Tasks\n';
-  for (const msg of summary.userMessages) {
-    section += `- ${msg.replace(/`/g, '\\`')}\n`;
+  // Completed tasks — treat last N user messages as tasks that were worked on
+  section += '### Completed\n';
+  if (summary.filesModified.length > 0) {
+    // If files were modified, list them as completed work items
+    for (const f of summary.filesModified) {
+      section += `- [x] Modified: ${path.basename(f)}\n`;
+    }
+  } else if (summary.userMessages.length > 0) {
+    // Fall back to user messages as task descriptions
+    for (const msg of summary.userMessages.slice(0, 5)) {
+      section += `- [x] ${msg.replace(/`/g, '\\`').split('\n')[0].slice(0, 120)}\n`;
+    }
+  } else {
+    section += '- [ ]\n';
   }
   section += '\n';
 
-  // Files modified
-  if (summary.filesModified.length > 0) {
-    section += '### Files Modified\n';
-    for (const f of summary.filesModified) {
-      section += `- ${f}\n`;
+  // In Progress — list any tasks beyond the completed ones
+  section += '### In Progress\n';
+  const inProgressMessages = summary.userMessages.slice(5);
+  if (inProgressMessages.length > 0) {
+    for (const msg of inProgressMessages) {
+      section += `- [ ] ${msg.replace(/`/g, '\\`').split('\n')[0].slice(0, 120)}\n`;
     }
-    section += '\n';
+  } else {
+    section += '- [ ]\n';
   }
+  section += '\n';
 
-  // Tools used
+  // Notes — tools used as context
+  section += '### Notes for Next Session\n';
   if (summary.toolsUsed.length > 0) {
-    section += `### Tools Used\n${summary.toolsUsed.join(', ')}\n\n`;
+    section += `- Tools used: ${summary.toolsUsed.join(', ')}\n`;
   }
+  section += `- Total user messages: ${summary.totalMessages}\n`;
+  section += '\n';
 
-  section += `### Stats\n- Total user messages: ${summary.totalMessages}\n`;
+  // Context to load — files modified
+  section += '### Context to Load\n```\n';
+  if (summary.filesModified.length > 0) {
+    section += summary.filesModified.join('\n') + '\n';
+  } else {
+    section += '[relevant files]\n';
+  }
+  section += '```';
 
   return section;
 }
-
